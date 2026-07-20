@@ -39,11 +39,6 @@ class EvidenceProcessor:
             }
 
         validation_result = self.validator.validate(raw_extraction)
-        print("=" * 60)
-        print("Validation Result:")
-        for key, value in validation_result.items():
-            print(f"  {key}: {value}")
-        print("=" * 60)
 
         if not validation_result["is_valid"]:
             return {

@@ -140,7 +140,7 @@ class MoniepointExcelParser:
             "direction": direction,
             "description": narration if narration and narration != 'nan' else txn_type,
             "service_type": svc_type,
-            "is_emtl_qualifying": svc_type == "transfer_to_bank",
+            "is_emtl_qualifying": svc_type == "transfer_to_bank" and float(amount) >= 10000,
             "is_levy_line": txn_type.upper() == 'VAT' or 'STAMP DUTY' in txn_type.upper(),
             "channel": "POS",
             "raw_debit": settlement_debit,
@@ -173,8 +173,6 @@ class MoniepointExcelParser:
 
     def _infer_service_type(self, txn_type: str, direction: str) -> str:
         t = txn_type.upper()
-        if t == 'PURCHASE':
-            return 'withdrawal' if direction == 'in' else 'deposit'
         if t in ('TRANSFER', 'TRF'):
             return 'transfer_to_bank' if direction == 'out' else 'pos_transfer'
         if t == 'VAT':

@@ -90,7 +90,7 @@ class OPayPDFParser:
                 "direction": "in" if credit > 0 else "out",
                 "description": description,
                 "service_type": service_type,
-                "is_emtl_qualifying": service_type == "transfer_to_bank",  # Stamp Duty applies to bank transfers >= ₦10k
+                "is_emtl_qualifying": service_type == "transfer_to_bank" and (credit if credit > 0 else debit) >= 10000,  # Stamp Duty applies to bank transfers >= ₦10k
                                                # separate transaction — not a flag on others
                 "is_levy_line": is_levy,
                 "channel": channel,
@@ -145,8 +145,6 @@ class OPayPDFParser:
 
     def _infer_service_type(self, description: str, is_credit: bool) -> str:
         d = description.lower()
-        if d.startswith('pos |') or d.startswith('pos|'):
-            return 'withdrawal' if is_credit else 'deposit'
         if 'electronic money transfer levy' in d or 'stamp duty' in d:
             return 'levy'
         if d.startswith('transfer from'):
