@@ -55,18 +55,21 @@ class MoniepointExcelParser:
                 "or the format has changed.",
             ])
 
-        df = pd.read_excel(io.BytesIO(fixed_bytes), header=header_row_idx)
-        df.columns = [str(c).strip() for c in df.columns]
+        try:
+            df = pd.read_excel(io.BytesIO(fixed_bytes), header=header_row_idx)
+            df.columns = [str(c).strip() for c in df.columns]
 
-        transactions = []
-        skipped = 0
-        for _, row in df.iterrows():
-            txn = self._parse_row(row)
-            if txn is None:
-                if row.notna().any():
-                    skipped += 1
-                continue
-            transactions.append(txn)
+            transactions = []
+            skipped = 0
+            for _, row in df.iterrows():
+                txn = self._parse_row(row)
+                if txn is None:
+                    if row.notna().any():
+                        skipped += 1
+                    continue
+                transactions.append(txn)
+        except Exception as e:
+            return self._failure([f"Could not parse the transaction table: {e}"])
 
         confidence = len(transactions) / (len(transactions) + skipped) if (transactions or skipped) else 0.0
 
@@ -134,13 +137,14 @@ class MoniepointExcelParser:
         direction = 'in' if settlement_credit > 0 else 'out'
 
         svc_type = self._infer_service_type(txn_type, direction)
+        amount_val = self._to_float(amount)
         return {
             "date": date,
-            "amount": float(amount),
+            "amount": amount_val,
             "direction": direction,
             "description": narration if narration and narration != 'nan' else txn_type,
             "service_type": svc_type,
-            "is_emtl_qualifying": svc_type == "transfer_to_bank" and float(amount) >= 10000,
+            "is_emtl_qualifying": svc_type == "transfer_to_bank" and amount_val >= 10000,
             "is_levy_line": txn_type.upper() == 'VAT' or 'STAMP DUTY' in txn_type.upper(),
             "channel": "POS",
             "raw_debit": settlement_debit,

@@ -16,17 +16,8 @@ Each transaction is 3 lines. The amount is found via "a dash followed by
 digits/commas/period", which OCR preserves even when the currency symbol
 before it is garbled.
 """
-import os
 import re
 import pytesseract
-_WINDOWS_TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-if os.path.exists(_WINDOWS_TESSERACT_PATH):
-    # Only override on a Windows dev machine that actually has it there.
-    # On Linux deployments (Render, Streamlit Cloud, Docker), this path
-    # never exists - leaving tesseract_cmd untouched lets pytesseract find
-    # the real binary on PATH instead of always failing on a hardcoded
-    # path that can never exist outside Windows.
-    pytesseract.pytesseract.tesseract_cmd = _WINDOWS_TESSERACT_PATH
 from PIL import Image
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -89,7 +80,7 @@ class OPayScreenshotParser:
                 "is_emtl_qualifying": service_type == "transfer_to_bank",
                 "is_levy_line": "stamp duty" in description.lower() or "vat" in description.lower(),
                 "channel": "App Screenshot",
-                "needs_date_confirmation": date is None,
+                "needs_date_confirmation": True,
                 # CONFIRMED on real data: OCR can misread the mangled ₦ glyph as a literal
                 # leading digit and fuse it onto the real amount (e.g. real ₦45,000 came
                 # back as 845,000 — a corrupted "8" prepended, with no way to detect this

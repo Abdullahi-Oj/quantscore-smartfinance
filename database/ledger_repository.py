@@ -51,7 +51,18 @@ def save_day_to_ledger(
     """Writes one day's daily_pnl() output to the database atomically.
     Returns the DailyFinancial (ledger) row. Raises on any failure."""
 
+    transaction_date = _to_date(transaction_date, date_type.today())
+
     try:
+        if evidence_id is not None:
+            old_records = db.query(TransactionRecord).filter(
+                TransactionRecord.evidence_id == evidence_id
+            ).all()
+            old_ids = [r.id for r in old_records]
+            if old_ids:
+                db.query(EngineLog).filter(EngineLog.transaction_id.in_(old_ids)).delete(synchronize_session=False)
+                db.query(TransactionRecord).filter(TransactionRecord.id.in_(old_ids)).delete(synchronize_session=False)
+
         saved_transactions = []
         for txn in pnl_result["transactions"]:
             rule_conf = txn.get("rule_confidence") or {}
@@ -77,7 +88,7 @@ def save_day_to_ledger(
                 calculated_provider_fee=txn.get("calculated_provider_fee"),
                 pricing_difference=txn.get("pricing_difference"),
                 pricing_alert=txn.get("pricing_alert", False),
-                rule_version=txn.get("rule_version"),
+                rule_version=txn.get("rule_version", "unknown"),
                 rule_confidence_level="pending" if is_pending else rule_conf.get("level"),
             )
             db.add(record)

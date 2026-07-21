@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import os
 from io import BytesIO
 from pathlib import Path
 import tempfile
@@ -20,6 +21,7 @@ from pos_engine import providers as pos_engine_providers
 from evidence_layer import EvidenceProcessor
 from pos_engine.transaction_adapter import daily_pnl_to_transactions
 from database import init_db, get_session, save_day_to_ledger, get_ledger_for_merchant, save_evidence
+from database.repositories import MerchantRepository
 from database.models import Merchant as MerchantModel, DailyFinancial
 
 # Initialise DB tables on every startup — safe, only creates what's missing.
@@ -140,15 +142,12 @@ def get_or_create_merchant(name: str, provider: str, level: str) -> int:
             MerchantModel.name == name,
         ).first()
         if merchant is None:
-            merchant = MerchantModel(
+            merchant = MerchantRepository(db).create_merchant(
                 name=name,
-                provider_id=1,         # placeholder until provider table is seeded
-                merchant_level_id=1,   # placeholder until level table is seeded
+                provider_code=provider,
+                level_code=level,
                 business_type="POS Agent",
             )
-            db.add(merchant)
-            db.commit()
-            db.refresh(merchant)
         return merchant.id
     finally:
         db.close()
@@ -427,17 +426,18 @@ if business_type == "POS Agent" and page == "🧾 POS Daily Entry":
     if evidence_file is not None:
         evidence_bytes = evidence_file.getvalue()
         suffix = Path(evidence_file.name).suffix
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
-            tmp_file.write(evidence_bytes)
-            tmp_path = tmp_file.name
 
         # Re-extract only when the uploaded file actually changes, so a Streamlit
         # rerun (e.g. from editing a correction below) doesn't re-run OCR every time.
         cache_key = f"{evidence_provider}:{evidence_file.name}:{len(evidence_bytes)}"
         if st.session_state.get("_evidence_cache_key") != cache_key:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                tmp_file.write(evidence_bytes)
+                tmp_path = tmp_file.name
             processor = EvidenceProcessor(provider=evidence_provider)
             with st.spinner("Extracting transactions..."):
                 raw_result = processor.process_file(tmp_path)
+            os.unlink(tmp_path)
             # IMMUTABLE: this is the original OCR/extraction output, stored exactly as
             # produced. It is never edited in place — corrections live in a SEPARATE
             # structure below, preserving a full evidence -> extraction -> correction ->
@@ -482,7 +482,7 @@ if business_type == "POS Agent" and page == "🧾 POS Daily Entry":
                          "Amount": r["amount"], "Direction": r["direction"]}
                         for r in clean_rows
                     ])
-                    st.dataframe(clean_df, width="stretch", hide_index=True, height=min(300, 38 * (len(clean_rows) + 1)))
+                    st.dataframe(clean_df, use_container_width=True, hide_index=True, height=min(300, 38 * (len(clean_rows) + 1)))
                     clean_total = sum(r["amount"] for r in clean_rows if r["direction"] == "in")
                     st.caption(f"Total credited across these {len(clean_rows)} transactions: ₦{clean_total:,.2f}")
                     bulk_confirm = st.checkbox(
@@ -834,12 +834,17 @@ if business_type == "POS Agent" and page == "🧾 POS Daily Entry":
 
                 get_rule_confidence = getattr(pos_engine_providers, "get_rule_confidence", None)
                 if callable(get_rule_confidence):
-                    try:
-                        rc = get_rule_confidence(pos_provider)
-                        if rc.get("level") == "low":
-                            st.warning(f"⚠️ **{rc.get('note', 'Rule confidence is low.')}** (fee schedule source: {rc.get('source', 'unknown')})")
-                    except Exception:
-                        pass
+                    seen_service_types = {t["service_type"] for t in pnl.get("transactions", [])}
+                    for st_type in seen_service_types:
+                        try:
+                            rc = get_rule_confidence(pos_provider, pos_level, st_type)
+                            if rc.get("level") in ("provisional", "unverified"):
+                                st.warning(
+                                    f"⚠️ **{st_type}: {rc.get('label', 'Rule confidence is low.')}** "
+                                    f"(source: {rc.get('source', 'unknown')})"
+                                )
+                        except Exception:
+                            pass
 
             except ValueError as e:
                 st.error(f"❌ Couldn't compute this day: {e}")

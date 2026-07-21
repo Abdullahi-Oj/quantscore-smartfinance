@@ -16,7 +16,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "smartfinance.db"
+DB_PATH = Path(__file__).parent.parent.parent / "smartfinance.db"
 
 
 def get_existing_columns(cur, table: str) -> set:

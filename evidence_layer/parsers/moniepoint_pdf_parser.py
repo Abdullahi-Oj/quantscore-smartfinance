@@ -21,11 +21,11 @@ class MoniepointPDFParser:
     # Constructor
     # ==========================================================
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, debug: bool = False):
 
         self.file_path = file_path
 
-        self.debug = True
+        self.debug = debug
 
     # ==========================================================
     # Main Entry Point

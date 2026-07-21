@@ -81,7 +81,7 @@ class OPayPDFParser:
 
             debit = self._clean(debit_str)
             credit = self._clean(credit_str)
-            is_levy = 'Electronic Money Transfer Levy' in description or 'Stamp Duty' in description
+            is_levy = 'electronic money transfer levy' in description.lower() or 'stamp duty' in description.lower()
             service_type = self._infer_service_type(description, credit > 0)
 
             transactions.append({

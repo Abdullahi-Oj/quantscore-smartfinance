@@ -42,7 +42,6 @@ class FeeType(str, enum.Enum):
 class EvidenceType(str, enum.Enum):
     SCREENSHOT = "screenshot"
     PDF_STATEMENT = "pdf_statement"
-    CSV_EXPORT = "csv_export"
     EXCEL_EXPORT = "excel_export"
     MANUAL_ENTRY = "manual_entry"
 
@@ -130,10 +129,10 @@ class MerchantPricing(Base):
     )
     
     # Withdrawal brackets: [{min: 1, max: 3000, charge: 100}, ...]
-    withdrawal_brackets: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+    withdrawal_brackets: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     
     # Transfer to bank brackets: [{min: 1, max: 3000, charge: 100}, ...]
-    transfer_to_bank_brackets: Mapped[dict] = mapped_column(JSON, nullable=False, default={})
+    transfer_to_bank_brackets: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     
     # Airtime / Data / Bills: flat fee per transaction
     airtime_data_bills_charge: Mapped[float] = mapped_column(Float, default=0.0)
