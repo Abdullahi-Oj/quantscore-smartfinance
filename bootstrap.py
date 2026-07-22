@@ -312,6 +312,40 @@ def verify_migration():
     return True
 
 
+def seed_if_needed() -> bool:
+    """Idempotent - safe to call on every app startup, not just once
+    manually. Seeds provider/level/pricing data ONLY if the database is
+    empty (a fresh deploy with no Provider rows yet); does nothing if data
+    already exists (local dev, or restarting an already-seeded instance).
+
+    This exists because bootstrap.py was previously only run manually
+    ("python bootstrap.py" before "streamlit run app.py"), which works
+    fine locally but is silently skipped on Streamlit Cloud - Cloud only
+    ever runs the app entrypoint, never a separate setup script, so a
+    fresh deploy got empty providers/provider_levels/provider_pricing_rules
+    tables and every merchant creation failed with "Unknown provider".
+
+    Returns True if seeding actually ran, False if the database already
+    had data (so callers can log/display which case happened).
+    """
+    init_db()
+    if not check_if_migration_needed():
+        return False
+
+    db = SessionLocal()
+    try:
+        migrate_opay_data(db)
+        migrate_moniepoint_data(db)
+        migrate_palmpay_data(db)
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def main():
     print("=" * 60)
     print("SmartFinance Database Bootstrap")

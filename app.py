@@ -23,9 +23,10 @@ from pos_engine.transaction_adapter import daily_pnl_to_transactions
 from database import init_db, get_session, save_day_to_ledger, get_ledger_for_merchant, save_evidence
 from database.repositories import MerchantRepository
 from database.models import Merchant as MerchantModel, DailyFinancial
+from bootstrap import seed_if_needed
 
-# Initialise DB tables on every startup — safe, only creates what's missing.
-init_db()
+if seed_if_needed():
+    st.toast("First-time setup: seeded provider pricing data.", icon="📦")
 
 # ─── Page Config ────────────────────────────────────────────────────────────
 st.set_page_config(
