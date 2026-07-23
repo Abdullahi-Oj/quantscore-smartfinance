@@ -11,6 +11,7 @@ from typing import Dict
 
 from .parsers import (
     OPayPDFParser,
+    OPayExcelParser,
     MoniepointPDFParser,
     MoniepointExcelParser,
     OPayScreenshotParser,
@@ -23,6 +24,7 @@ _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 # the person reviewing, how much to trust a given source WITHOUT having
 # to inspect the actual confidence_score float every time.
 CONFIDENCE_LEVELS = {
+    "csv": {"level": "A", "label": "Structured export", "typical_confidence": 0.999},
     "excel": {"level": "A", "label": "Structured export", "typical_confidence": 0.999},
     "pdf": {"level": "B", "label": "Text-based document", "typical_confidence": 0.95},
     "screenshot": {"level": "C", "label": "OCR (image)", "typical_confidence": 0.5},
@@ -58,7 +60,8 @@ class EvidenceExtractor:
                 "errors": [
                     f"No validated parser available for {self.provider} + "
                     f"'{self.file_extension}' files yet. Currently supported: "
-                    f"OPay (.pdf statement, screenshot), Moniepoint (.xlsx statement, screenshot)."
+                    f"OPay (.pdf statement, .xlsx statement, screenshot), "
+                    f"Moniepoint (.pdf statement, .xlsx statement, screenshot)."
                 ],
                 "provider": self.provider,
             }
@@ -73,6 +76,8 @@ class EvidenceExtractor:
         if self.provider == "OPay":
             if ext == ".pdf":
                 return OPayPDFParser(self.file_path)
+            if ext in (".xlsx", ".xls"):
+                return OPayExcelParser(self.file_path)
             if is_image:
                 return OPayScreenshotParser(self.file_path)
         elif self.provider == "Moniepoint":

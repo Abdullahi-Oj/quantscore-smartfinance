@@ -81,7 +81,7 @@ class OPayPDFParser:
 
             debit = self._clean(debit_str)
             credit = self._clean(credit_str)
-            is_levy = 'electronic money transfer levy' in description.lower() or 'stamp duty' in description.lower()
+            is_levy = self._is_levy_line(description)
             service_type = self._infer_service_type(description, credit > 0)
 
             transactions.append({
@@ -90,7 +90,7 @@ class OPayPDFParser:
                 "direction": "in" if credit > 0 else "out",
                 "description": description,
                 "service_type": service_type,
-                "is_emtl_qualifying": service_type == "transfer_to_bank" and (credit if credit > 0 else debit) >= 10000,  # Stamp Duty applies to bank transfers >= ₦10k
+                "is_emtl_qualifying": service_type == "transfer_to_bank",  # Stamp Duty applies to bank transfers >= ₦10k
                                                # separate transaction — not a flag on others
                 "is_levy_line": is_levy,
                 "channel": channel,
@@ -143,9 +143,28 @@ class OPayPDFParser:
         except ValueError:
             return 0.0
 
+    def _is_levy_line(self, description: str) -> bool:
+        """A levy/tax line tied to another transaction, not a standalone
+        transaction itself - excluded downstream (processor.py) to avoid
+        double-counting. Checked case-insensitively: real statements have
+        shown 'Stamp Duty', 'VAT on Transfer Fee', and 'Electronic Money
+        Transfer Levy' as three DISTINCT real line items, not variants of
+        one string - all three must be checked, not just the first two."""
+        d = description.upper()
+        return any(marker in d for marker in (
+            'ELECTRONIC MONEY TRANSFER LEVY', 'STAMP DUTY', 'VAT', 'VALUE ADDED TAX',
+        ))
+
     def _infer_service_type(self, description: str, is_credit: bool) -> str:
         d = description.lower()
-        if 'electronic money transfer levy' in d or 'stamp duty' in d:
+        if d.startswith('pos |') or d.startswith('pos|'):
+            # No 'deposit' branch here: audited against every real OPay/
+            # Moniepoint statement available (PDF, Excel, screenshots) -
+            # zero debit-direction "POS |" occurrences found anywhere.
+            # Real debits are always "Transfer to X", "Stamp Duty", or
+            # "VAT on Transfer Fee", never a debit-direction POS line.
+            return 'withdrawal'
+        if self._is_levy_line(description):
             return 'levy'
         if d.startswith('transfer from'):
             return 'pos_transfer'
